@@ -1,0 +1,13 @@
+pyautogui
+opencv-python
+pillow
+cryptography
+termcolor
+psutil
+pyfiglet
+tabulate
+netifaces
+wmi
+pywin32
+pycryptodome
+requests
