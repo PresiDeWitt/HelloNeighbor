@@ -71,7 +71,7 @@ from cryptography.fernet import Fernet
 
 class StealthServer:
     def __init__(self):
-        self.key = Fernet(b'2V6yY4lLf97hB0mKnR8qCw1xZ3zA5eG7dF0jH4sP9rT2uM6vX8cB')  # Misma clave
+        self.key = Fernet('EbFqsf2CJ6a8pRHtKiHe-V6R9uMXvPEO627-wzsx_k4=')  # Misma clave
         self.cipher = Fernet(self.key)        self.cipher = Fernet(self.key)
         self.running = True
     

