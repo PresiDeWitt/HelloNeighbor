@@ -4,8 +4,11 @@ import threading
 import time
 import sys
 import os
-import winreg
+
 import ctypes
+
+from future.moves import winreg
+
 from screen_server import ScreenServer
 from remote_control_system import ControlServer
 from security_config import SecureConfig

@@ -1,3 +1,4 @@
+network-scanner
 pyautogui
 opencv-python
 pillow
